@@ -1,3 +1,4 @@
 include ':app'
 rootProject.name = "Panorama Stitching"
-include ':openCVLibrary24132'
+include ':opencv'
+include ':opencv'

@@ -21,12 +21,11 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
         Mat newimage;
 
         // Convert to a 3 channel Mat to use with Stitcher module
-        cvtColor(curimage, newimage, CV_RGBA2RGB);
+        cvtColor(curimage, newimage, COLOR_RGBA2RGB);
 
         // Rotate image 90 degrees counter-clockwise for vertical stitching logic
-        // OpenCV 2.4 compatibility: Transpose + Flip Vertical (0) = 90 CCW
-        transpose(newimage, newimage);
-        flip(newimage, newimage, 0);
+        // This makes the vertical panorama appear as a horizontal one to the stitcher
+        rotate(newimage, newimage, ROTATE_90_COUNTERCLOCKWISE);
 
         // Reduce the resolution for fast computation
         // Scale based on height (which corresponds to the original width of the vertical strip)
@@ -36,29 +35,25 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
         imgVec.push_back(newimage);
       }
 
-  Mat & result  = *(Mat*) outputAddress;
+    Mat & result  = *(Mat*) outputAddress;
 
-  Stitcher stitcher = Stitcher::createDefault(true);
-  
-  // Configure stitcher BEFORE stitching
-  stitcher.setRegistrationResol(-1); /// 0.6
-  stitcher.setSeamEstimationResol(-1);   /// 0.1
-  stitcher.setCompositingResol(-1);   //1
-  stitcher.setPanoConfidenceThresh(-1);   //1
-  stitcher.setWaveCorrection(true);
-  stitcher.setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
+    Ptr<Stitcher> stitcher = Stitcher::create(Stitcher::PANORAMA);
 
-  Stitcher::Status status = stitcher.stitch(imgVec, result);
+    stitcher->setRegistrationResol(-1);
+    stitcher->setSeamEstimationResol(-1);
+    stitcher->setCompositingResol(-1);
+    stitcher->setPanoConfidenceThresh(-1);
+    stitcher->setWaveCorrection(true);
+    stitcher->setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
 
-   if (status != Stitcher::OK){
-                  ret=0;
-   }else{
-         // Rotate the result back (90 degrees clockwise)
-         // OpenCV 2.4 compatibility: Transpose + Flip Horizontal (1) = 90 CW
-         transpose(result, result);
-         flip(result, result, 1);
-         cv::cvtColor(result, result, CV_BGR2RGBA, 4);
-         }
+    Stitcher::Status status = stitcher->stitch(imgVec, result);
+
+    if (status != Stitcher::OK){
+        ret= (jint)status;
+    } else {
+        rotate(result, result, ROTATE_90_CLOCKWISE);
+        cv::cvtColor(result, result, cv::COLOR_BGR2RGBA);
+    }
 
   // Release the jlong array
   env->ReleaseLongArrayElements(imageAddressArray, imgAddressArr ,0);
