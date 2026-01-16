@@ -5,22 +5,25 @@ plugins {
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.2"
-
+    ndkVersion "17.2.4988734"
     defaultConfig {
         applicationId "com.prasoon.panoramastitching"
         minSdkVersion 22
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // Filter to only include the ABIs supported by OpenCV 2.4.13
+            abiFilters 'armeabi-v7a', 'x86'
+        }
     }
 
     sourceSets.main {
         jni.srcDirs = [] //disable automatic ndk-build call
     }
     task ndkBuild(type: Exec, description: 'Compile JNI source via NDK') {
-        commandLine "D:\\AndroidStudioProjects\\sdk\\ndk\\17.2.4988734\\ndk-build.cmd",
+        commandLine "C:\\Users\\Pratiksha\\AppData\\Local\\Android\\Sdk\\ndk\\17.2.4988734\\ndk-build.cmd",
                 'NDK_PROJECT_PATH=build/intermediates/ndk',
                 'NDK_LIBS_OUT=src/main/jniLibs',
                 'APP_BUILD_SCRIPT=src/main/jni/Android.mk',

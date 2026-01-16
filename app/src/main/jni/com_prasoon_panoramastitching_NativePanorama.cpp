@@ -23,10 +23,15 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
         // Convert to a 3 channel Mat to use with Stitcher module
         cvtColor(curimage, newimage, CV_RGBA2RGB);
 
+        // Rotate image 90 degrees counter-clockwise for vertical stitching logic
+        // OpenCV 2.4 compatibility: Transpose + Flip Vertical (0) = 90 CCW
+        transpose(newimage, newimage);
+        flip(newimage, newimage, 0);
+
         // Reduce the resolution for fast computation
-        float scale = 1000.0f / curimage.rows;
-        resize(newimage, newimage, Size(scale * curimage.rows, scale * curimage.cols));
-        // resize(newimage, newimage, Size(800,600));
+        // Scale based on height (which corresponds to the original width of the vertical strip)
+        float scale = 1000.0f / newimage.rows;
+        resize(newimage, newimage, Size(), scale, scale);
 
         imgVec.push_back(newimage);
       }
@@ -34,7 +39,8 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
   Mat & result  = *(Mat*) outputAddress;
 
   Stitcher stitcher = Stitcher::createDefault(true);
-  Stitcher::Status status = stitcher.stitch(imgVec, result);
+  
+  // Configure stitcher BEFORE stitching
   stitcher.setRegistrationResol(-1); /// 0.6
   stitcher.setSeamEstimationResol(-1);   /// 0.1
   stitcher.setCompositingResol(-1);   //1
@@ -42,9 +48,15 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
   stitcher.setWaveCorrection(true);
   stitcher.setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
 
+  Stitcher::Status status = stitcher.stitch(imgVec, result);
+
    if (status != Stitcher::OK){
                   ret=0;
    }else{
+         // Rotate the result back (90 degrees clockwise)
+         // OpenCV 2.4 compatibility: Transpose + Flip Horizontal (1) = 90 CW
+         transpose(result, result);
+         flip(result, result, 1);
          cv::cvtColor(result, result, CV_BGR2RGBA, 4);
          }
 
