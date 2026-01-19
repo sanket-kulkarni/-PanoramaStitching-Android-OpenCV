@@ -9,8 +9,18 @@ import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
+import androidx.camera.video.FileOutputOptions;
+import androidx.camera.video.MediaStoreOutputOptions;
+import androidx.camera.video.PendingRecording;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
+import androidx.camera.video.Recorder;
+import androidx.camera.video.Recording;
+import androidx.camera.video.VideoCapture;
+import androidx.camera.video.VideoRecordEvent;
 import androidx.core.content.ContextCompat;
-
+import android.content.ContentValues;
+import android.provider.MediaStore;
 import android.app.ProgressDialog;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -52,10 +62,12 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
     }
 
     private TextView mTextViewJni;
-    private Button captureBtn, saveBtn;
+    private Button captureBtn, saveBtn, recordBtn;
     private PreviewView viewFinder; // Replaces mSurfaceView
     private SurfaceView mSurfaceViewOnTop;
     private ImageCapture imageCapture; // CameraX ImageCapture use case
+    private VideoCapture<Recorder> videoCapture;
+    private Recording recording;
     private ExecutorService cameraExecutor;
 
     private boolean safeToTakePicture = true;
@@ -77,6 +89,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
 
         captureBtn = findViewById(R.id.capture);
         saveBtn = findViewById(R.id.save);
+        recordBtn = findViewById(R.id.record);
 
         // Start CameraX
         startCamera();
@@ -93,6 +106,8 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
             Thread thread = new Thread(imageProcessingRunnable);
             thread.start();
         });
+
+        recordBtn.setOnClickListener(v -> captureVideo());
     }
 
     private void startCamera() {
@@ -113,6 +128,12 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .build();
 
+                // VideoCapture
+                Recorder recorder = new Recorder.Builder()
+                        .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
+                        .build();
+                videoCapture = VideoCapture.withOutput(recorder);
+
                 // Select back camera as a default
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
@@ -120,7 +141,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                 cameraProvider.unbindAll();
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, videoCapture);
 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e("Panorama", "Use case binding failed", e);
@@ -146,6 +167,59 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                 safeToTakePicture = true;
             }
         });
+    }
+
+    private void captureVideo() {
+        if (videoCapture == null) {
+            return;
+        }
+
+        if (recording != null) {
+            // Stop recording
+            recording.stop();
+            recording = null;
+            return;
+        }
+
+        // Create MediaStoreOutputOptions to save directly to Pictures
+        String name = "CameraX-Record-" + System.currentTimeMillis();
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        contentValues.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+
+        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(
+                getContentResolver(),
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+                .setContentValues(contentValues)
+                .build();
+
+        // Start recording
+        // Audio is disabled by default if not requested.
+        recording = videoCapture.getOutput()
+                .prepareRecording(this, options)
+                .start(ContextCompat.getMainExecutor(this), recordEvent -> {
+                    if (recordEvent instanceof VideoRecordEvent.Start) {
+                        recordBtn.setText("Stop");
+                        recordBtn.setEnabled(true);
+                    } else if (recordEvent instanceof VideoRecordEvent.Finalize) {
+                         VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) recordEvent;
+                        if (!finalizeEvent.hasError()) {
+                            String msg = "Video saved to: " + finalizeEvent.getOutputResults().getOutputUri();
+                            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                            Log.d("Panorama", msg);
+                        } else {
+                            if (recording != null) {
+                                recording.close(); 
+                                recording = null;
+                            }
+                            Log.e("Panorama", "Video capture failed: " + finalizeEvent.getError());
+                            Toast.makeText(this, "Video capture failed", Toast.LENGTH_SHORT).show();
+                        }
+                        recordBtn.setText("Record");
+                        recordBtn.setEnabled(true);
+                    }
+                });
     }
 
     private void processCapturedImage(ImageProxy image) {

@@ -43,6 +43,17 @@
         tools:layout_editor_absoluteX="288dp"
         tools:layout_editor_absoluteY="624dp" />
 
+    <Button
+        android:id="@+id/record"
+        android:layout_width="wrap_content"
+        android:layout_height="70dp"
+        android:layout_centerInParent="true"
+        android:layout_marginRight="27dp"
+        android:layout_toLeftOf="@id/capture"
+        android:padding="10dp"
+        android:text="Record"
+        tools:ignore="MissingConstraints" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
