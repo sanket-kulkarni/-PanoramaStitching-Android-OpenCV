@@ -21,15 +21,19 @@ public class StartingActivity extends AppCompatActivity {
     }
 
     private void verifyPermissions(){
-        String[] permissions = {Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA};
+        String[] permissions = {
+//                Manifest.permission.READ_EXTERNAL_STORAGE,
+//                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.CAMERA};
 
-        if (ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[0])
-                == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[1])
-                        == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this.getApplicationContext(),permissions[2])
-                        == PackageManager.PERMISSION_GRANTED){
+        if (
+                ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[0])
+                == PackageManager.PERMISSION_GRANTED
+//               && ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[1])
+//                        == PackageManager.PERMISSION_GRANTED &&
+//                ContextCompat.checkSelfPermission(this.getApplicationContext(),permissions[2])
+//                        == PackageManager.PERMISSION_GRANTED
+        ){
             Intent intent = new Intent(this, PanoramaStitchingActivity.class);
                     startActivity(intent);
         }else {
