@@ -30,6 +30,10 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
+import android.media.MediaMetadataRetriever;
+import android.net.Uri;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -208,6 +212,9 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                             String msg = "Video saved to: " + finalizeEvent.getOutputResults().getOutputUri();
                             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
                             Log.d("Panorama", msg);
+                            
+                            // Extract frames
+                            extractFrames(finalizeEvent.getOutputResults().getOutputUri());
                         } else {
                             if (recording != null) {
                                 recording.close(); 
@@ -220,6 +227,52 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                         recordBtn.setEnabled(true);
                     }
                 });
+    }
+
+    private void extractFrames(Uri videoUri) {
+        cameraExecutor.execute(() -> {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            try {
+                retriever.setDataSource(this, videoUri);
+                String time = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                long durationMs = Long.parseLong(time);
+                
+                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "frames");
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+
+                runOnUiThread(() -> Toast.makeText(getApplicationContext(), "Extracting Video Frames...", Toast.LENGTH_SHORT).show());
+                
+                int count = 0;
+                for (long i = 0; i < durationMs; i += 1000) {
+                    Bitmap frame = retriever.getFrameAtTime(i * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                    if (frame != null) {
+                        File file = new File(dir, "frame_" + System.currentTimeMillis() + "_" + count + ".png");
+                        try (FileOutputStream out = new FileOutputStream(file)) {
+                            frame.compress(Bitmap.CompressFormat.PNG, 100, out);
+                        }
+                        processFrames(frame);
+                        count++;
+                    }
+                }
+                
+                 final int finalCount = count;
+                 runOnUiThread(() -> Toast.makeText(getApplicationContext(), "Extracted " + finalCount + " frames.", Toast.LENGTH_SHORT).show());
+                 Log.d("Panorama", "Extracted " + finalCount + " frames.");
+
+            } catch (Exception e) {
+                Log.e("Panorama", "Error extracting frames", e);
+                runOnUiThread(() -> Toast.makeText(getApplicationContext(), "Error extracting frames", Toast.LENGTH_SHORT).show());
+            } finally {
+                try {
+                    retriever.release();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    // Ignore
+                }
+            }
+        });
     }
 
     private void processCapturedImage(ImageProxy image) {
@@ -249,6 +302,30 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
 
         // Update Overlay on Main Thread
         updateOverlay(rotatedBitmap);
+    }
+
+    private void processFrames(Bitmap rotatedBitmap) {
+        // Handle rotation
+        // CameraX images might be rotated. We should rotate them to match display or requirements.
+        // The old code forced 90 degrees.
+        // Let's use the image's rotation info.
+//        int rotationDegrees = image.getImageInfo().getRotationDegrees();
+        // Or if the user code specifically wanted 90, we can add 90?
+        // Let's stick to rotationDegrees which makes it upright.
+
+//        Matrix matrix = new Matrix();
+//        matrix.postRotate(rotationDegrees);
+//        Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
+//                bitmap.getHeight(), matrix, false);
+
+        // Add to list for OpenCV (convert to Mat)
+        Mat mat = new Mat();
+        Bitmap bmp32 = rotatedBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Utils.bitmapToMat(bmp32, mat);
+        listImage.add(mat);
+
+        // Update Overlay on Main Thread
+        //  updateOverlay(rotatedBitmap);
     }
     
     private void updateOverlay(Bitmap bitmap) {
@@ -309,8 +386,11 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
 
                 // Create a Mat to store the final panorama image
                 Mat result = new Mat();
+                Log.i("Panorama", "processPanorama started ");
+                long start = System.currentTimeMillis();
                 // Call the OpenCV C++ code to perform stitching process
                 int ret = NativePanorama.processPanorama(tempobjadr, result.getNativeObjAddr());
+                Log.i("Panorama", "processPanorama completed  in "+((System.currentTimeMillis() - start)/1000)+" seconds");
                 if (ret == 0) {
                     Log.i("Panorama", "ret " + ret);
                 } else {
@@ -331,6 +411,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                         Log.i("Panorama", "Fail writing image to external storage" + fileName);
 
                 } catch (Exception e) {
+                    Log.i("Panorama", "Fail writing image to external storage111" + fileName);
                     e.printStackTrace();
                 }
 
