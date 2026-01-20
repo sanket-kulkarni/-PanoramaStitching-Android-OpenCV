@@ -67,6 +67,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
 
     private TextView mTextViewJni;
     private Button captureBtn, saveBtn, recordBtn;
+    private android.widget.ImageView arrowOverlay;
     private PreviewView viewFinder; // Replaces mSurfaceView
     private SurfaceView mSurfaceViewOnTop;
     private ImageCapture imageCapture; // CameraX ImageCapture use case
@@ -94,6 +95,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
         captureBtn = findViewById(R.id.capture);
         saveBtn = findViewById(R.id.save);
         recordBtn = findViewById(R.id.record);
+        arrowOverlay = findViewById(R.id.arrow_overlay);
 
         // Start CameraX
         startCamera();
@@ -206,6 +208,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                     if (recordEvent instanceof VideoRecordEvent.Start) {
                         recordBtn.setText("Stop");
                         recordBtn.setEnabled(true);
+                        arrowOverlay.setVisibility(View.VISIBLE);
                     } else if (recordEvent instanceof VideoRecordEvent.Finalize) {
                          VideoRecordEvent.Finalize finalizeEvent = (VideoRecordEvent.Finalize) recordEvent;
                         if (!finalizeEvent.hasError()) {
@@ -225,6 +228,7 @@ public class PanoramaStitchingActivity extends AppCompatActivity {
                         }
                         recordBtn.setText("Record");
                         recordBtn.setEnabled(true);
+                        arrowOverlay.setVisibility(View.INVISIBLE);
                     }
                 });
     }

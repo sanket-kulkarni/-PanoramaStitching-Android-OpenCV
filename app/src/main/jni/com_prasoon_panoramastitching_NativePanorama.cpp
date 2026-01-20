@@ -1,9 +1,11 @@
 #include "com_prasoon_panoramastitching_NativePanorama.h"
 #include "opencv2/opencv.hpp"
 #include "opencv2/stitching.hpp"
+#include <vector>
+#include <android/log.h>
 
-using namespace std;
 using namespace cv;
+using std::vector;
 
 JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_processPanorama
   (JNIEnv *env, jclass clazz, jlongArray imageAddressArray, jlong outputAddress){
@@ -32,21 +34,65 @@ JNIEXPORT jint JNICALL Java_com_prasoon_panoramastitching_NativePanorama_process
         float scale = 1000.0f / newimage.rows;
         resize(newimage, newimage, Size(), scale, scale);
 
+        // Check for duplicates
+        bool isDuplicate = false;
+        for(size_t i=0; i<imgVec.size(); i++) {
+             Mat diff;
+             cv::compare(newimage, imgVec[i], diff, cv::CMP_NE);
+             // cntNonZero only works on single channel matrices. Reshape to 1 channel.
+             diff = diff.reshape(1);
+             if (cv::countNonZero(diff) == 0) {
+                 isDuplicate = true;
+                 break;
+             }
+        }
+
+        if (isDuplicate) {
+            continue;
+        }
+
         imgVec.push_back(newimage);
       }
+    // Example: Logging a debug message
+    __android_log_print(ANDROID_LOG_DEBUG, "Panorama", "Debug message: imgVec size is %d",a_len );
 
     Mat & result  = *(Mat*) outputAddress;
+    
+    if (imgVec.empty()) {
+          env->ReleaseLongArrayElements(imageAddressArray, imgAddressArr ,0);
+          return -1;
+    }
 
-    Ptr<Stitcher> stitcher = Stitcher::create(Stitcher::PANORAMA);
+    if (imgVec.size() == 1) {
+        result = imgVec[0];
+        rotate(result, result, ROTATE_90_CLOCKWISE);
+        cv::cvtColor(result, result, cv::COLOR_BGR2RGBA);
+        env->ReleaseLongArrayElements(imageAddressArray, imgAddressArr ,0);
+        return 1;
+    }
+    __android_log_print(ANDROID_LOG_DEBUG, "Panorama", "Debug message: Stitcher object created");
+    bool try_gpu = true;
+    // 1. Create the stitcher in SCANS mode (best for flat receipts)
+//    cv::Ptr<cv::Stitcher> stitcher = cv::Stitcher::create(cv::Stitcher::SCANS);
+    cv::Ptr<cv::Stitcher> stitcher = cv::Stitcher::create(cv::Stitcher::PANORAMA);
 
-    stitcher->setRegistrationResol(-1);
-    stitcher->setSeamEstimationResol(-1);
+    // 2. Customize ORB parameters for better text detection
+// nfeatures: Increase from 500 to 1500+ for dense text on receipts
+// scaleFactor & nlevels: Standard pyramid parameters
+    cv::Ptr<cv::Feature2D> orbFinder = cv::ORB::create(3000, 1.2f, 8);
+
+// 3. Set the custom finder to the stitcher
+    stitcher->setFeaturesFinder(orbFinder);
+
+    stitcher->setRegistrationResol(0.3);
+    stitcher->setSeamEstimationResol(0.1);
     stitcher->setCompositingResol(-1);
-    stitcher->setPanoConfidenceThresh(-1);
-    stitcher->setWaveCorrection(true);
-    stitcher->setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
-
+    stitcher->setPanoConfidenceThresh(0.2);
+    stitcher->setWaveCorrection(false);
+//    stitcher->setWaveCorrectKind(detail::WAVE_CORRECT_HORIZ);
+    __android_log_print(ANDROID_LOG_DEBUG, "Panorama", "Debug message: Stitching process started");
     Stitcher::Status status = stitcher->stitch(imgVec, result);
+    __android_log_print(ANDROID_LOG_DEBUG, "Panorama", "Debug message: Stitching process completed, status is  %d",status);
 
     if (status != Stitcher::OK){
         ret= (jint)status;
