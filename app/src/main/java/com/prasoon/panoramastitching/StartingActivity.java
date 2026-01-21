@@ -9,6 +9,9 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.Toast;
 
 public class StartingActivity extends AppCompatActivity {
     private int REQUEST_CODE = 1;
@@ -17,32 +20,55 @@ public class StartingActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_starting);
-        verifyPermissions();
+
+        Button btnPanorama = findViewById(R.id.btn_panorama);
+        Button btnTextRec = findViewById(R.id.btn_text_recognition);
+
+        btnPanorama.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (checkPermission()) {
+                    startActivity(new Intent(StartingActivity.this, PanoramaStitchingActivity.class));
+                } else {
+                    requestPermission();
+                }
+            }
+        });
+
+        btnTextRec.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (checkPermission()) {
+                    startActivity(new Intent(StartingActivity.this, TextRecognitionActivity.class));
+                } else {
+                    requestPermission();
+                }
+            }
+        });
+
+        if (!checkPermission()) {
+            requestPermission();
+        }
     }
 
-    private void verifyPermissions(){
-        String[] permissions = {
-//                Manifest.permission.READ_EXTERNAL_STORAGE,
-//                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.CAMERA};
+    private boolean checkPermission() {
+        return ContextCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED;
+    }
 
-        if (
-                ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[0])
-                == PackageManager.PERMISSION_GRANTED
-//               && ContextCompat.checkSelfPermission(this.getApplicationContext(), permissions[1])
-//                        == PackageManager.PERMISSION_GRANTED &&
-//                ContextCompat.checkSelfPermission(this.getApplicationContext(),permissions[2])
-//                        == PackageManager.PERMISSION_GRANTED
-        ){
-            Intent intent = new Intent(this, PanoramaStitchingActivity.class);
-                    startActivity(intent);
-        }else {
-            ActivityCompat.requestPermissions(StartingActivity.this, permissions, REQUEST_CODE);
-        }
+    private void requestPermission() {
+        ActivityCompat.requestPermissions(StartingActivity.this, new String[]{Manifest.permission.CAMERA}, REQUEST_CODE);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        verifyPermissions();
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera Permission Granted", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Camera Permission Required", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-# PanoramaStitching-Android-OpenCV
+      # PanoramaStitching-Android-OpenCV
 
 This project is created using OpenCV-2.4.13.2 with NDK-17, since Stitcher functions were defined as a part of OpenCV in this version.
 
